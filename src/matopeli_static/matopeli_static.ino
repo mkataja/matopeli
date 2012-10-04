@@ -2,6 +2,7 @@
 
 #define JOYSTICK_DEAD_ZONE 200
 #define JOYSTICK_CENTER 512
+#define WALL_COLLISIONS true
 
 //create object
 EasyTransfer ET;
@@ -12,39 +13,53 @@ struct Frame{
   unsigned char r[8][8];
   unsigned char g[8][8];
   unsigned char b[8][8];
+
+  void clear() {
+    for (int x = 0; x < 8; x++) {
+      for (int y = 0; y < 8; y++) {
+        r[x][y] = 0;
+        g[x][y] = 0;
+        b[x][y] = 0;
+      }
+    }
+  }
 };
 
 Frame frame;
-
-void clearFrame() {
-  for (int x = 0; x < 8; x++) {
-    for (int y = 0; y < 8; y++) {
-      frame.r[x][y] = 0;
-      frame.g[x][y] = 0;
-      frame.b[x][y] = 0;
-    }
-  }
-}
 
 class WormPart{
 public:
   int x;
   int y;
+  boolean blinkstate;
 
   void draw() {
     frame.r[y][x] = 255;
     frame.g[y][x] = 100;
     frame.b[y][x] = 100;
   }
+
+  void drawDead() {
+    blinkstate = !blinkstate;
+    if (blinkstate) {
+      frame.r[y][x] = 255;
+    }
+    else {
+      frame.r[y][x] = 0;
+    }
+  }
 } 
 parts[64];
 
 class Worm{
-public:
+private:
   int head_index, tail_index;
   int xspeed, yspeed;
+  boolean dead;
 
+public:
   void init() {
+    dead = false;
     head_index = 1;
     tail_index = 0;
     xspeed = 1;
@@ -55,13 +70,17 @@ public:
     parts[tail_index].y = 3;
   }
 
+  void respawn() {
+    init();
+  }
+
   boolean move(int xinput, int yinput) {
     if (xspeed) {
       if (yinput) {
         xspeed = 0;
         yspeed = yinput;
       }
-    } 
+    }
     else if (yspeed) {
       if (xinput) {
         yspeed = 0;
@@ -70,30 +89,94 @@ public:
     }
     int newx = parts[head_index].x + xspeed;
     int newy = parts[head_index].y + yspeed;
-    if (newx < 0 || newx > 7 || newy <0 || newy > 7) {
-      // Wall collision detection disabled:
-      //return false;
+    if (WALL_COLLISIONS) {
+      if (newx < 0 || newx > 7 || newy <0 || newy > 7) {
+        dead = true;
+      }
     }
-    newx = newx % 8;
-    newy = newy % 8;
-    head_index++;
-    head_index = head_index % 64;
-    tail_index++;
-    tail_index = tail_index % 64;
-    parts[head_index].x = newx;
-    parts[head_index].y = newy;
+    else {
+      if (newx > 7) {
+        newx = 0;
+      }
+      if (newx < 0) {
+        newx = 7;
+      }
+      if (newy > 7) {
+        newy = 0;
+      }
+      if (newy < 0) {
+        newy = 7;
+      }
+    }
+
+    if (dead) {
+      return false;
+    } 
+    else {
+      head_index++;
+      head_index = head_index % 64;
+      tail_index++;
+      tail_index = tail_index % 64;
+      parts[head_index].x = newx;
+      parts[head_index].y = newy;
+      return true;
+    }
   }
 
   void draw() {
     int i = tail_index;
     do {
-      parts[i%64].draw();
+      if (!dead)
+        parts[i%64].draw();
+      else
+        parts[i%64].drawDead();
       i++;
     } 
     while(i%64 != (head_index + 1) % 64);
   }
+
+  boolean cellReserved(int x, int y) {
+    int i = tail_index;
+    do {
+      if (parts[i].x == x && parts[i].y == y)
+        return true;
+      i++;
+    } 
+    while(i%64 != (head_index + 1) % 64);
+    return false;
+  }
 } 
 worm;
+
+class Apple {
+private:
+  int x;
+  int y;
+
+public:
+  void add() {
+    do {
+      x = random(0, 7);
+      y = random(0, 7);
+    } 
+    while (worm.cellReserved(x, y));
+  }
+
+  boolean eat(int headx, int heady) {
+    if (headx == x && heady == y) {
+      add();
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+
+  void draw() {
+    frame.g[y][x] = 255;
+  }
+} 
+apple;
 
 void setup(){
   Serial.begin(19200);
@@ -105,6 +188,7 @@ void setup(){
   randomSeed(analogRead(0));
 
   worm.init();
+  apple.add();
 }
 
 void loop(){
@@ -122,12 +206,22 @@ void loop(){
   if (analogRead(1) - JOYSTICK_CENTER > 0 + JOYSTICK_DEAD_ZONE) {
     yinput = -1;
   }
-  worm.move(xinput, yinput);
+  boolean dead = worm.move(xinput, yinput);
+  if (dead) {
+    static int respawn = 10;
+    respawn--;
+    if (respawn == 0) {
+      worm.respawn();
+    }
+  }
   worm.draw();
+  apple.draw();
   ET.sendData();
-  clearFrame();
-  delay(500);
+  frame.clear();
+  delay(300);
 }
+
+
 
 
 
