@@ -206,12 +206,13 @@ void loop(){
   if (analogRead(1) - JOYSTICK_CENTER > 0 + JOYSTICK_DEAD_ZONE) {
     yinput = -1;
   }
-  boolean dead = worm.move(xinput, yinput);
-  if (dead) {
+  boolean alive = worm.move(xinput, yinput);
+  if (!alive) {
     static int respawn = 10;
     respawn--;
     if (respawn == 0) {
       worm.respawn();
+      respawn = 10;
     }
   }
   worm.draw();
