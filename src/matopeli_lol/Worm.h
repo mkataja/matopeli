@@ -11,7 +11,6 @@ private:
 
 public:
   void init();
-  void respawn();
   bool move(int xinput, int yinput);
   void grow();
   void draw(Frame* frame);

@@ -17,10 +17,9 @@ void Worm::init() {
   parts[head_index].y = 3;
   parts[tail_index].x = 0;
   parts[tail_index].y = 3;
-}
-
-void Worm::respawn() {
-  init();
+  for (int i = 0; i < 64; i++) {
+    parts[i].blinkstate = false;
+  }
 }
 
 int Worm::getHeadX() {
